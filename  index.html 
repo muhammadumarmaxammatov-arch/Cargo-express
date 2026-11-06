@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head> <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#1e293b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Cargo Express">
+    <title>Cargo Express - Kargo Boshqaruv</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        /* Toast animation */
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
+        .toast-enter { animation: slideIn 0.3s ease-out; }
+        .toast-exit { animation: slideOut 0.3s ease-in forwards; }
+        
+        /* Print styles */
+        @media print {
+            body * { visibility: hidden; }
+            #printable-receipt, #printable-receipt * { visibility: visible; }
+            #printable-receipt { 
+                position: fixed; 
+                left: 0; 
+                top: 0; 
+                width: 100%; 
+                padding: 20px;
+                background: white !important;
+            }
+        }
+        
+        /* Bag card hover */
+        .bag-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .bag-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-blue-600 rounded-lg text-white">
+                    <i data-lucide="package"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">CARGO EXPRESS</h1>
+                    <p class="text-[10px] sm:text-xs text-slate-400">Xitoy ➔ O'zbekiston</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-6 text-sm">
+                <div class="hidden sm:block bg-slate-900/60 px-3 py-1.5 rounded-md border border-slate-700/50">
+                    <span class="text-slate-400 text-[10px] block">Bugungi sana:</span>
+                    <span id="current-date-display" class="font-medium text-slate-200 text-xs"></span>
+                </div>
+                <button onclick="exportData()" title="Backup yuklab olish" class="flex items-center gap-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-md transition">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Backup</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col md:flex-row gap-4 sm:gap-6">
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 flex-shrink-0">
+            <nav class="flex md:flex-col space-x-2 md:space-x-0 md:space-y-1 bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-sm overflow-x-auto">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg text-left whitespace-nowrap transition bg-blue-600 text-white">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+                </button>
+                <button onclick="switchTab('bagajlar')" id="tab-bagajlar" class="tab-btn flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 text-left whitespace-nowrap transition">
+                    <i data-lucide="box" class="w-4 h-4"></i> Bagajlar
+                </button>
+                <button onclick="switchTab('tovarlar')" id="tab-tovarlar" class="tab-btn flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 text-left whitespace-nowrap transition">
+                    <i data-lucide="boxes" class="w-4 h-4"></i> Tovarlar
+                </button>
+                <button onclick="switchTab('qidiruv')" id="tab-qidiruv" class="tab-btn flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 text-left whitespace-nowrap transition">
+                    <i data-lucide="search" class="w-4 h-4"></i> Qidiruv
+                </button>
+            </nav>
+
+            <!-- Quick Actions (Desktop) -->
+            <div class="mt-4 space-y-2 hidden md:block">
+                <button onclick="openAddBagajModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 text-sm transition">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Yangi Bagaj
+                </button>
+                <button onclick="openAddParcelModal()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 text-sm transition">
+                    <i data-lucide="package-plus" class="w-4 h-4"></i> Tovar Kiritish
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 min-w-0">
+
+            <!-- DASHBOARD -->
+            <div id="view-dashboard" class="space-y-4 sm:space-y-6">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div class="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami Vazn</span>
+                            <div class="p-1.5 sm:p-2 bg-blue-500/10 text-blue-400 rounded-lg"><i data-lucide="weight" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                        </div>
+                        <div class="mt-2 sm:mt-3">
+                            <span id="stat-total-weight" class="text-xl sm:text-2xl font-bold text-white">0</span> <span class="text-xs sm:text-sm text-slate-400">kg</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Omborda</span>
+                            <div class="p-1.5 sm:p-2 bg-amber-500/10 text-amber-400 rounded-lg"><i data-lucide="warehouse" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                        </div>
+                        <div class="mt-2 sm:mt-3">
+                            <span id="stat-warehouse-count" class="text-xl sm:text-2xl font-bold text-white">0</span> <span class="text-xs sm:text-sm text-slate-400">dona</span>
+                        </div>
+                        <p class="text-[10px] sm:text-xs text-amber-400/80 mt-1" id="stat-warehouse-weight">0 kg</p>
+                    </div>
+
+                    <div class="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Berildi</span>
+                            <div class="p-1.5 sm:p-2 bg-emerald-500/10 text-emerald-400 rounded-lg"><i data-lucide="check-circle-2" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                        </div>
+                        <div class="mt-2 sm:mt-3">
+                            <span id="stat-delivered-count" class="text-xl sm:text-2xl font-bold text-white">0</span> <span class="text-xs sm:text-sm text-slate-400">dona</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">Jami Summa</span>
+                            <div class="p-1.5 sm:p-2 bg-purple-500/10 text-purple-400 rounded-lg"><i data-lucide="dollar-sign" class="w-4 h-4 sm:w-5 sm:h-5"></i></div>
+                        </div>
+                        <div class="mt-2 sm:mt-3">
+                            <span id="stat-total-money" class="text-xl sm:text-2xl font-bold text-emerald-400">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div class="lg:col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-white flex items-center gap-2 text-sm sm:text-base"><i data-lucide="box" class="w-4 h-4 text-blue-400"></i> Oxirgi Bagajlar</h3>
+                            <button onclick="openAddBagajModal()" class="text-xs text-blue-400 hover:underline">+ Yangi</button>
+                        </div>
+                        <div id="recent-bags-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <div class="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-white flex items-center gap-2 text-sm sm:text-base"><i data-lucide="clock" class="w-4 h-4 text-emerald-400"></i> So'nggi Tovarlar</h3>
+                            <button onclick="openAddParcelModal()" class="text-xs text-emerald-400 hover:underline">+ Qo'shish</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-slate-300">
+                                <thead class="bg-slate-900/60 text-[10px] sm:text-xs text-slate-400 uppercase">
+                                    <tr>
+                                        <th class="px-3 py-2.5 rounded-l-lg">Trek</th>
+                                        <th class="px-3 py-2.5">Mijoz</th>
+                                        <th class="px-3 py-2.5">Vazn</th>
+                                        <th class="px-3 py-2.5">Summa</th>
+                                        <th class="px-3 py-2.5 rounded-r-lg">Holat</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboard-recent-parcels" class="divide-y divide-slate-700/50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BAGAJLAR -->
+            <div id="view-bagajlar" class="space-y-4 sm:space-y-6 hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-white">Master Bagajlar</h2>
+                        <p class="text-[11px] sm:text-xs text-slate-400">Xitoydan partiya bo'lib kelgan bagajlar</p>
+                    </div>
+                    <button onclick="openAddBagajModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2 w-full sm:w-auto justify-center">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Bagaj Qo'shish
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" id="bagajlar-grid"></div>
+            </div>
+
+            <!-- TOVARLAR -->
+            <div id="view-tovarlar" class="space-y-4 sm:space-y-6 hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-white">Barcha Tovarlar</h2>
+                        <p class="text-[11px] sm:text-xs text-slate-400">Bagajlar ichidan chiqqan yakka tovarlar</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <select id="filter-status-select" onchange="renderParcelsTable()" class="flex-1 sm:flex-none bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 px-3 py-2">
+                            <option value="all">Barchasi</option>
+                            <option value="omborda">Omborda</option>
+                            <option value="berildi">Berildi</option>
+                        </select>
+                        <button onclick="openAddParcelModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 sm:px-4 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Tovar
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300 min-w-[900px]">
+                            <thead class="bg-slate-900 text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-3 py-3">Trek / SF</th>
+                                    <th class="px-3 py-3">Mijoz</th>
+                                    <th class="px-3 py-3">Telefon</th>
+                                    <th class="px-3 py-3">Bagaj №</th>
+                                    <th class="px-3 py-3">Vazn</th>
+                                    <th class="px-3 py-3">Tarif</th>
+                                    <th class="px-3 py-3">Jami</th>
+                                    <th class="px-3 py-3">Sana</th>
+                                    <th class="px-3 py-3">Status</th>
+                                    <th class="px-3 py-3 text-right">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="parcels-table-body" class="divide-y divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QIDIRUV -->
+            <div id="view-qidiruv" class="space-y-4 sm:space-y-6 hidden">
+                <div class="bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-700 space-y-4">
+                    <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2"><i data-lucide="search" class="text-blue-400"></i> Tezkor Qidiruv</h2>
+                    <p class="text-[11px] sm:text-xs text-slate-400">Trek raqam, mijoz ismi yoki telefon orqali qidiring</p>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-slate-500"></i>
+                        <input type="text" id="search-input" onkeyup="handleSearch()" placeholder="SF123456, Ali Valiyev, +998..." 
+                            class="w-full bg-slate-900 border border-slate-600 rounded-xl pl-12 pr-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div id="search-results-container" class="space-y-3 sm:space-y-4"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL: BAGAJ -->
+    <div id="modal-bagaj" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-xl relative">
+            <button onclick="closeModal('modal-bagaj')" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x"></i></button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i data-lucide="box" class="text-blue-400"></i> Yangi Bagaj</h3>
+            <form id="form-bagaj" onsubmit="saveBagaj(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Bagaj Kodi *</label>
+                    <input type="text" id="bagaj-code" required placeholder="BAG-001 / XIT-302" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Og'irligi (kg) *</label>
+                    <input type="number" step="0.01" id="bagaj-weight" required placeholder="33" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Izoh</label>
+                    <textarea id="bagaj-note" rows="2" placeholder="Guangzhou reysi..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeModal('modal-bagaj')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-slate-300">Bekor</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium text-white shadow-md">Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PARCEL -->
+    <div id="modal-parcel" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeModal('modal-parcel')" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i data-lucide="x"></i></button>
+            <h3 id="modal-parcel-title" class="text-lg font-bold text-white mb-4 flex items-center gap-2"><i data-lucide="package-plus" class="text-emerald-400"></i> Tovar Kiritish</h3>
+            <form id="form-parcel" onsubmit="saveParcel(event)" class="space-y-4">
+                <input type="hidden" id="parcel-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Bagaj *</label>
+                    <select id="parcel-bagaj-id" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"></select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Trek Raqam *</label>
+                        <input type="text" id="parcel-track" required placeholder="SF123456" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Mijoz *</label>
+                        <input type="text" id="parcel-owner" required placeholder="Ali Valiyev" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Telefon</label>
+                        <input type="text" id="parcel-phone" placeholder="+998901234567" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Vazni (kg) *</label>
+                        <input type="number" step="0.001" id="parcel-weight" oninput="calculateParcelCost()" required placeholder="0.100" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Tarif ($/kg) *</label>
+                        <input type="number" step="0.1" id="parcel-rate" value="12" oninput="calculateParcelCost()" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-400 uppercase mb-1">Jami ($)</label>
+                        <input type="text" id="parcel-total" readonly class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-amber-400 font-bold text-sm">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" onclick="closeModal('modal-parcel')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-slate-300">Bekor</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium text-white shadow-md">Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: RECEIPT -->
+    <div id="modal-receipt" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm p-4 shadow-xl relative">
+            <button onclick="closeModal('modal-receipt')" class="absolute top-4 right-4 text-slate-400 hover:text-white print:hidden z-10"><i data-lucide="x"></i></button>
+            <div id="printable-receipt" class="bg-white p-6 rounded-xl shadow-inner text-slate-800 text-sm space-y-4">
+                <div class="text-center border-b pb-3">
+                    <h2 class="text-xl font-extrabold tracking-wider">CARGO EXPRESS</h2>
+                    <p class="text-xs text-slate-500">Kargo Topshirish Kvitansiyasi</p>
+                </div>
+                <div class="space-y-1 text-xs">
+                    <div class="flex justify-between"><span class="text-slate-500">Sana:</span> <span id="rec-date" class="font-medium"></span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Mijoz:</span> <span id="rec-owner" class="font-bold"></span></div>
+                    <div class="flex justify-between"><span class="text-slate-500">Tel:</span> <span id="rec-phone"></span></div>
+                </div>
+                <div class="border-t border-b border-dashed py-3 space-y-2">
+                    <div class="flex justify-between text-xs"><span class="text-slate-500">Trek:</span> <span id="rec-track" class="font-mono font-bold"></span></div>
+                    <div class="flex justify-between text-xs"><span class="text-slate-500">Vazni:</span> <span id="rec-weight" class="font-medium"></span></div>
+                    <div class="flex justify-between text-xs"><span class="text-slate-500">Tarif:</span> <span id="rec-rate"></span></div>
+                </div>
+                <div class="flex justify-between items-center text-base font-extrabold pt-1">
+                    <span>TO'LOV:</span>
+                    <span id="rec-total" class="text-emerald-700 text-lg"></span>
+                </div>
+                <div class="text-center text-[10px] text-slate-400 pt-3 border-t">
+                    Xizmatingiz uchun rahmat!<br>Tovarni joyida tekshirib oling.
+                </div>
+            </div>
+            <div class="mt-4 print:hidden">
+                <button onclick="window.print()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Chop Etish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[100] space-y-2 print:hidden"></div>
+
+    <script>
+        // PWA Manifest via JS
+        (function() {
+            const manifest = {
+                name: "Cargo Express",
+                short_name: "Cargo",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#1e293b",
+                icons: [{
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%232563eb'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E",
+                    sizes: "any",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }]
+            };
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+            document.head.appendChild(link);
+        })();
+
+        // State
+        let state = {
+            bags: JSON.parse(localStorage.getItem('cargo_bags')) || [
+                { id: 'bag-1', code: 'BAG-001 (Xitoy)', weight: 33.0, date: new Date().toISOString().split('T')[0], note: 'Birinchi kelgan bagaj' }
+            ],
+            parcels: JSON.parse(localStorage.getItem('cargo_parcels')) || [
+                { id: 'p-1', bagId: 'bag-1', track: 'SF12938472', owner: 'Rashidov Anvar', phone: '+998901112233', weight: 1.5, rate: 12, total: 18.00, status: 'omborda', inDate: new Date().toISOString().split('T')[0], outDate: null },
+                { id: 'p-2', bagId: 'bag-1', track: 'JT99823811', owner: 'Karimova Malika', phone: '+998935554433', weight: 0.35, rate: 12, total: 4.20, status: 'omborda', inDate: new Date().toISOString().split('T')[0], outDate: null },
+                { id: 'p-3', bagId: 'bag-1', track: '221330918237765', owner: 'Sardorbek', phone: '+998977778899', weight: 10.0, rate: 12, total: 120.00, status: 'berildi', inDate: new Date().toISOString().split('T')[0], outDate: new Date().toISOString().split('T')[0] }
+            ]
+        };
+
+        function saveData() {
+            localStorage.setItem('cargo_bags', JSON.stringify(state.bags));
+            localStorage.setItem('cargo_parcels', JSON.stringify(state.parcels));
+            renderAll();
+        }
+
+        window.onload = function() {
+            document.getElementById('current-date-display').innerText = new Date().toLocaleDateString('uz-UZ');
+            renderAll();
+        };
+
+        function renderAll() {
+            renderDashboard();
+            renderBagsGrid();
+            renderParcelsTable();
+            populateBagajDropdown();
+            // Refresh search if active
+            const searchVal = document.getElementById('search-input').value.trim();
+            if (searchVal) handleSearch();
+            lucide.createIcons();
+        }
+
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const colors = {
+                success: 'bg-emerald-600 border-emerald-500',
+                error: 'bg-red-600 border-red-500',
+                info: 'bg-blue-600 border-blue-500'
+            };
+            const icons = { success: 'check-circle', error: 'alert-circle', info: 'info' };
+            const toast = document.createElement('div');
+            toast.className = `${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm min-w-[250px] toast-enter`;
+            toast.innerHTML = `<i data-lucide="${icons[type]}" class="w-4 h-4"></i> ${message}`;
+            document.getElementById('toast-container').appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchTab(tabName) {
+            ['dashboard', 'bagajlar', 'tovarlar', 'qidiruv'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`tab-${t}`);
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('text-slate-400');
+            });
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            activeBtn.classList.add('bg-blue-600', 'text-white');
+            activeBtn.classList.remove('text-slate-400');
+            if (tabName === 'qidiruv') handleSearch();
+            lucide.createIcons();
+        }
+
+        function calculateParcelCost() {
+            const w = parseFloat(document.getElementById('parcel-weight').value) || 0;
+            const r = parseFloat(document.getElementById('parcel-rate').value) || 0;
+            document.getElementById('parcel-total').value = `$${(w * r).toFixed(2)}`;
+        }
+
+        function renderDashboard() {
+            const totalBagWeight = state.bags.reduce((sum, b) => sum + Number(b.weight), 0);
+            const warehouseParcels = state.parcels.filter(p => p.status === 'omborda');
+            const deliveredParcels = state.parcels.filter(p => p.status === 'berildi');
+            const warehouseWeight = warehouseParcels.reduce((sum, p) => sum + Number(p.weight), 0);
+            const totalMoney = state.parcels.reduce((sum, p) => sum + Number(p.total), 0);
+
+            document.getElementById('stat-total-weight').innerText = totalBagWeight.toFixed(1);
+            document.getElementById('stat-warehouse-count').innerText = warehouseParcels.length;
+            document.getElementById('stat-warehouse-weight').innerText = `${warehouseWeight.toFixed(1)} kg omborda`;
+            document.getElementById('stat-delivered-count').innerText = deliveredParcels.length;
+            document.getElementById('stat-total-money').innerText = `$${totalMoney.toFixed(2)}`;
+
+            const recentBagsContainer = document.getElementById('recent-bags-list');
+            if(state.bags.length === 0) {
+                recentBagsContainer.innerHTML = `<p class="text-xs text-slate-500 py-4 text-center">Bagajlar yo'q</p>`;
+            } else {
+                recentBagsContainer.innerHTML = state.bags.slice(-4).reverse().map(b => {
+                    const bagParcels = state.parcels.filter(p => p.bagId === b.id);
+                    const filledWeight = bagParcels.reduce((sum, p) => sum + Number(p.weight), 0);
+                    return `
+                        <div class="bg-slate-900/70 p-3 rounded-lg border border-slate-700/60 flex items-center justify-between text-xs">
+                            <div>
+                                <div class="font-bold text-slate-200">${b.code}</div>
+                                <div class="text-slate-400">${bagParcels.length} ta (${filledWeight.toFixed(1)}/${b.weight} kg)</div>
+                            </div>
+                            <span class="px-2 py-1 bg-blue-500/10 text-blue-400 font-semibold rounded text-[10px]">${b.weight} kg</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            const recentParcelsBody = document.getElementById('dashboard-recent-parcels');
+            if(state.parcels.length === 0) {
+                recentParcelsBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-xs text-slate-500">Tovarlar yo'q</td></tr>`;
+            } else {
+                recentParcelsBody.innerHTML = state.parcels.slice(-5).reverse().map(p => `
+                    <tr class="hover:bg-slate-700/30">
+                        <td class="px-3 py-2.5 font-mono text-xs font-semibold text-slate-200">${p.track}</td>
+                        <td class="px-3 py-2.5 text-slate-300 text-xs">${p.owner}</td>
+                        <td class="px-3 py-2.5 font-medium text-xs">${p.weight} kg</td>
+                        <td class="px-3 py-2.5 text-emerald-400 font-semibold text-xs">$${Number(p.total).toFixed(2)}</td>
+                        <td class="px-3 py-2.5">
+                            <span class="px-2 py-0.5 text-[10px] rounded-full font-medium ${p.status === 'omborda' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">
+                                ${p.status === 'omborda' ? 'Omborda' : 'Berildi'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function renderBagsGrid() {
+            const container = document.getElementById('bagajlar-grid');
+            if(state.bags.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-sm">Bagajlar yo'q. "+ Bagaj Qo'shish" tugmasini bosing.</div>`;
+                return;
+            }
+
+            container.innerHTML = state.bags.map(b => {
+                const bagParcels = state.parcels.filter(p => p.bagId === b.id);
+                const sumWeight = bagParcels.reduce((sum, p) => sum + Number(p.weight), 0);
+                const isOverweight = sumWeight > b.weight;
+                const fillPercent = b.weight > 0 ? Math.min((sumWeight / b.weight) * 100, 100) : 0;
+
+                return `
+                    <div class="bag-card bg-slate-800 rounded-xl border border-slate-700 p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <span class="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Bagaj</span>
+                                    <h3 class="text-base sm:text-lg font-bold text-white">${b.code}</h3>
+                                </div>
+                                <button onclick="deleteBagaj('${b.id}')" class="text-slate-500 hover:text-red-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                            
+                            <!-- Progress bar -->
+                            <div class="mb-3">
+                                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                                    <span>To'ldirilgan</span>
+                                    <span class="${isOverweight ? 'text-red-400 font-bold' : 'text-emerald-400'}">${fillPercent.toFixed(0)}%</span>
+                                </div>
+                                <div class="w-full bg-slate-900 rounded-full h-1.5">
+                                    <div class="${isOverweight ? 'bg-red-500' : 'bg-emerald-500'} h-1.5 rounded-full transition-all" style="width: ${Math.min(fillPercent, 100)}%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2 text-xs text-slate-300">
+                                <div class="flex justify-between py-1 border-b border-slate-700/50">
+                                    <span class="text-slate-400">Kelgan:</span>
+                                    <span class="font-bold text-white">${b.weight} kg</span>
+                                </div>
+                                <div class="flex justify-between py-1 border-b border-slate-700/50">
+                                    <span class="text-slate-400">Tovar vazni:</span>
+                                    <span class="font-bold ${isOverweight ? 'text-red-400' : 'text-emerald-400'}">${sumWeight.toFixed(2)} kg</span>
+                                </div>
+                                <div class="flex justify-between py-1 border-b border-slate-700/50">
+                                    <span class="text-slate-400">Tovarlar:</span>
+                                    <span class="font-medium">${bagParcels.length} dona</span>
+                                </div>
+                                ${b.note ? `<p class="text-[11px] text-slate-400 italic pt-1">"${b.note}"</p>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-t border-slate-700/60 flex justify-between items-center gap-2">
+                            <span class="text-[10px] text-slate-500">${b.date}</span>
+                            <button onclick="openAddParcelModal('${b.id}')" class="text-xs bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-medium px-2.5 py-1.5 rounded-lg border border-emerald-500/30 transition">
+                                + Tovar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderParcelsTable() {
+            const filter = document.getElementById('filter-status-select').value;
+            const container = document.getElementById('parcels-table-body');
+            let parcels = filter === 'all' ? state.parcels : state.parcels.filter(p => p.status === filter);
+
+            if(parcels.length === 0) {
+                container.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-500 text-xs">Tovarlar yo'q</td></tr>`;
+                return;
+            }
+
+            container.innerHTML = parcels.map(p => {
+                const bag = state.bags.find(b => b.id === p.bagId);
+                const bagCode = bag ? bag.code : '—';
+                return `
+                    <tr class="hover:bg-slate-700/20 text-xs">
+                        <td class="px-3 py-3 font-mono font-bold text-slate-100">${p.track}</td>
+                        <td class="px-3 py-3 font-medium text-slate-200">${p.owner}</td>
+                        <td class="px-3 py-3 text-slate-400">${p.phone || '-'}</td>
+                        <td class="px-3 py-3 text-slate-400 text-[11px]">${bagCode}</td>
+                        <td class="px-3 py-3 font-semibold text-slate-200">${p.weight} kg</td>
+                        <td class="px-3 py-3 text-slate-400">$${p.rate}</td>
+                        <td class="px-3 py-3 font-bold text-emerald-400">$${Number(p.total).toFixed(2)}</td>
+                        <td class="px-3 py-3 text-[11px] text-slate-400">
+                            <div>K: ${p.inDate}</div>
+                            ${p.outDate ? `<div class="text-emerald-400">Ch: ${p.outDate}</div>` : ''}
+                        </td>
+                        <td class="px-3 py-3">
+                            <span class="px-2 py-1 text-[10px] rounded-full font-semibold ${p.status === 'omborda' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">
+                                ${p.status === 'omborda' ? 'Omborda' : 'Berildi'}
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 text-right space-x-1 whitespace-nowrap">
+                            ${p.status === 'omborda' 
+                                ? `<button onclick="markAsDelivered('${p.id}')" title="Berish" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded text-[11px] transition"><i data-lucide="check" class="w-3 h-3 inline"></i></button>`
+                                : `<button onclick="printReceipt('${p.id}')" title="Chek" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-1 rounded text-[11px] transition"><i data-lucide="printer" class="w-3 h-3 inline"></i></button>`
+                            }
+                            <button onclick="openEditParcelModal('${p.id}')" title="Tahrirlash" class="text-blue-400 hover:text-blue-300 px-1 py-1"><i data-lucide="pencil" class="w-3.5 h-3.5 inline"></i></button>
+                            <button onclick="deleteParcel('${p.id}')" title="O'chirish" class="text-slate-500 hover:text-red-400 px-1 py-1"><i data-lucide="trash-2" class="w-3.5 h-3.5 inline"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('search-input').value.toLowerCase().trim();
+            const container = document.getElementById('search-results-container');
+
+            if (!query) {
+                container.innerHTML = `<p class="text-center text-xs text-slate-500 py-8">Qidirish uchun trek, ism yoki telefon kiriting...</p>`;
+                return;
+            }
+
+            const results = state.parcels.filter(p => 
+                p.track.toLowerCase().includes(query) || 
+                p.owner.toLowerCase().includes(query) ||
+                (p.phone && p.phone.includes(query))
+            );
+
+            if(results.length === 0) {
+                container.innerHTML = `<div class="bg-slate-800 p-6 text-center text-slate-400 rounded-xl border border-slate-700 text-sm">"${query}" bo'yicha topilmadi</div>`;
+                return;
+            }
+
+            container.innerHTML = results.map(p => `
+                <div class="bg-slate-800 p-4 sm:p-5 rounded-xl border border-slate-700 shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div class="space-y-1 w-full md:w-auto">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-mono text-sm sm:text-base font-bold text-blue-400">${p.track}</span>
+                            <span class="px-2 py-0.5 text-[10px] rounded-full font-semibold ${p.status === 'omborda' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">
+                                ${p.status === 'omborda' ? 'Omborda' : 'Berildi'}
+                            </span>
+                        </div>
+                        <div class="text-sm font-semibold text-white">${p.owner} <span class="text-xs text-slate-400 font-normal">(${p.phone || '—'})</span></div>
+                        <div class="text-xs text-slate-400">${p.weight} kg × $${p.rate}/kg</div>
+                    </div>
+                    <div class="flex items-center gap-3 w-full md:w-auto justify-between border-t md:border-t-0 pt-3 md:pt-0 border-slate-700">
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-400 uppercase block">To'lov</span>
+                            <span class="text-lg sm:text-xl font-extrabold text-emerald-400">$${Number(p.total).toFixed(2)}</span>
+                        </div>
+                        <div class="flex gap-2">
+                            ${p.status === 'omborda' 
+                                ? `<button onclick="markAsDelivered('${p.id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow"><i data-lucide="check" class="w-4 h-4"></i> Berish</button>`
+                                : `<button onclick="printReceipt('${p.id}')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium px-3 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5"><i data-lucide="printer" class="w-4 h-4"></i> Chek</button>`
+                            }
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // BAGAJ
+        function openAddBagajModal() {
+            document.getElementById('form-bagaj').reset();
+            document.getElementById('modal-bagaj').classList.remove('hidden');
+        }
+
+        function saveBagaj(e) {
+            e.preventDefault();
+            const code = document.getElementById('bagaj-code').value.trim();
+            const weight = parseFloat(document.getElementById('bagaj-weight').value);
+            const note = document.getElementById('bagaj-note').value.trim();
+
+            state.bags.push({
+                id: 'bag-' + Date.now(),
+                code, weight, note,
+                date: new Date().toISOString().split('T')[0]
+            });
+            saveData();
+            closeModal('modal-bagaj');
+            showToast(`Bagaj "${code}" qo'shildi`, 'success');
+        }
+
+        function deleteBagaj(id) {
+            const bag = state.bags.find(b => b.id === id);
+            if (confirm(`"${bag.code}" bagajini o'chirasizmi?`)) {
+                state.bags = state.bags.filter(b => b.id !== id);
+                saveData();
+                showToast('Bagaj o\'chirildi', 'info');
+            }
+        }
+
+        function populateBagajDropdown() {
+            const select = document.getElementById('parcel-bagaj-id');
+            if(state.bags.length === 0) {
+                select.innerHTML = `<option value="">Avval bagaj yarating!</option>`;
+                return;
+            }
+            select.innerHTML = state.bags.map(b => `<option value="${b.id}">${b.code} (${b.weight} kg)</option>`).join('');
+        }
+
+        // PARCEL
+        function openAddParcelModal(preselectedBagId = null) {
+            if (state.bags.length === 0) {
+                showToast("Avval bagaj yarating!", 'error');
+                openAddBagajModal();
+                return;
+            }
+            document.getElementById('form-parcel').reset();
+            document.getElementById('parcel-id').value = '';
+            document.getElementById('parcel-rate').value = 12;
+            document.getElementById('parcel-total').value = '$0.00';
+            document.getElementById('modal-parcel-title').innerHTML = '<i data-lucide="package-plus" class="text-emerald-400"></i> Tovar Kiritish';
+            
+            if(preselectedBagId) {
+                document.getElementById('parcel-bagaj-id').value = preselectedBagId;
+            }
+            document.getElementById('modal-parcel').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function openEditParcelModal(id) {
+            const p = state.parcels.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('parcel-id').value = p.id;
+            document.getElementById('parcel-bagaj-id').value = p.bagId;
+            document.getElementById('parcel-track').value = p.track;
+            document.getElementById('parcel-owner').value = p.owner;
+            document.getElementById('parcel-phone').value = p.phone || '';
+            document.getElementById('parcel-weight').value = p.weight;
+            document.getElementById('parcel-rate').value = p.rate;
+            calculateParcelCost();
+            document.getElementById('modal-parcel-title').innerHTML = '<i data-lucide="pencil" class="text-blue-400"></i> Tovarni Tahrirlash';
+            document.getElementById('modal-parcel').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function saveParcel(e) {
+            e.preventDefault();
+            const id = document.getElementById('parcel-id').value;
+            const bagId = document.getElementById('parcel-bagaj-id').value;
+            const track = document.getElementById('parcel-track').value.trim();
+            const owner = document.getElementById('parcel-owner').value.trim();
+            const phone = document.getElementById('parcel-phone').value.trim();
+            const weight = parseFloat(document.getElementById('parcel-weight').value);
+            const rate = parseFloat(document.getElementById('parcel-rate').value);
+            const total = parseFloat((weight * rate).toFixed(2));
+
+            if (id) {
+                // Update
+                const p = state.parcels.find(x => x.id === id);
+                Object.assign(p, { bagId, track, owner, phone, weight, rate, total });
+                saveData();
+                closeModal('modal-parcel');
+                showToast('Tovar yangilandi', 'success');
+            } else {
+                // Create
+                const newParcel = {
+                    id: 'p-' + Date.now(),
+                    bagId, track, owner, phone, weight, rate, total,
+                    status: 'omborda',
+                    inDate: new Date().toISOString().split('T')[0],
+                    outDate: null
+                };
+                state.parcels.push(newParcel);
+                saveData();
+                closeModal('modal-parcel');
+                showToast(`"${track}" omborga qo'shildi`, 'success');
+                printReceipt(newParcel.id);
+            }
+        }
+
+        function markAsDelivered(id) {
+            const p = state.parcels.find(x => x.id === id);
+            if(!p) return;
+            if(!confirm(`"${p.track}" tovarini mijozga berishni tasdiqlaysizmi?`)) return;
+            p.status = 'berildi';
+            p.outDate = new Date().toISOString().split('T')[0];
+            saveData();
+            showToast(`"${p.track}" berildi`, 'success');
+            printReceipt(id);
+        }
+
+        function deleteParcel(id) {
+            if(confirm("Tovarni o'chirasizmi?")) {
+                state.parcels = state.parcels.filter(p => p.id !== id);
+                saveData();
+                showToast('Tovar o\'chirildi', 'info');
+            }
+        }
+
+        function printReceipt(id) {
+            const p = state.parcels.find(item => item.id === id);
+            if (!p) return;
+            document.getElementById('rec-date').innerText = p.outDate || p.inDate;
+            document.getElementById('rec-owner').innerText = p.owner;
+            document.getElementById('rec-phone').innerText = p.phone || '-';
+            document.getElementById('rec-track').innerText = p.track;
+            document.getElementById('rec-weight').innerText = `${p.weight} kg`;
+            document.getElementById('rec-rate').innerText = `$${p.rate}/kg`;
+            document.getElementById('rec-total').innerText = `$${Number(p.total).toFixed(2)}`;
+            document.getElementById('modal-receipt').classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = `cargo_backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('Backup yuklandi', 'success');
+        }
+    </script> ⁠
+window.Telegram.WebApp.expand();⁠
+
+</body>
+</html>
